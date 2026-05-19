@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Degz Pulse - ERP & BIR Compliant</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="watermark-bg">DEGZ PULSE</div>
+    <div class="copyright-footer">
+        © 2026 <span>Degz Pulse Enterprise</span>. All Rights Reserved. | PURE DECOUPLED ARCHITECTURE<br>
+        Strictly for internal business use. Unauthorized reproduction, resale, or distribution without a valid <strong>Permit To Use (PTU)</strong> is strictly prohibited.
+    </div>
+
+    <div id="toast-container"></div>
+    <div id="loginOverlay">
+        <div class="login-box">
+            <h2 style="margin-top: 0; color: var(--text-main);">Enterprise Secure Login</h2>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem;">Protected by AES-256 Cloud Ledger</p>
+            <input type="password" id="sysPassword" class="search-box" style="width: 100%; text-align: center; font-size: 1.2rem; letter-spacing: 5px; padding: 10px;" placeholder="••••••••" onkeyup="if(event.key === 'Enter') checkPassword()">
+            <p id="loginError" style="color: var(--danger); display: none; font-size: 0.8rem; margin-top: 10px; margin-bottom: 0;">Incorrect Password!</p>
+            <button class="btn-submit" style="width: 100%;" onclick="checkPassword()">Unlock Dashboard</button>
+        </div>
+    </div>
+    <div id="loadingOverlay"><div class="spinner"></div><div id="loadingText">Syncing Enterprise Database...</div></div>
+    
+    <div id="validatorModal" class="modal">
+        <div class="modal-content" style="max-width: 650px;">
+            <span class="close-btn" onclick="document.getElementById('validatorModal').style.display='none'">&times;</span>
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:10px; margin-bottom: 20px;">
+                <h2 style="margin:0; color:var(--text-main);">✅ RELIEF Validator Pro</h2>
+                <span class="badge" style="background:var(--primary-light); color:var(--accent); padding:5px 10px; border-radius:5px; font-size:0.8rem;">Offline Scan</span>
+            </div>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0;">Validate your generated .DAT files against strict BIR formatting rules.</p>
+            <input type="file" id="datFileInput" accept=".dat,.txt,.csv" style="width: 100%; padding: 12px; background: var(--input-bg); border: 2px dashed var(--accent); border-radius: 8px; margin-bottom: 20px; color: var(--text-main); font-weight: bold;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                <div style="background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 15px; text-align: center;">
+                    <span style="display: block; font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Lines Scanned</span>
+                    <strong id="valTotalLines" style="font-size: 1.8rem;">0</strong>
+                </div>
+                <div style="background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 15px; text-align: center;">
+                    <span style="display: block; font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase;">Errors</span>
+                    <strong id="valTotalErrors" style="font-size: 1.8rem; color: var(--danger);">0</strong>
+                </div>
+            </div>
+            <div id="validatorLog" style="background: var(--primary-light); border-radius: 8px; border: 1px solid var(--border); padding: 15px; max-height: 250px; overflow-y: auto; font-family: monospace; font-size: 0.85rem;"></div>
+        </div>
+    </div>
+
+    <div id="birProfileModal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <span class="close-btn" onclick="document.getElementById('birProfileModal').style.display='none'">&times;</span>
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:10px; margin-bottom: 20px;">
+                <h2 style="margin:0; color:var(--text-main);">🏛️ BIR RELIEF Configuration</h2>
+                <span class="badge" style="background:var(--primary-light); color:var(--accent); padding:5px 10px; border-radius:5px; font-size:0.8rem;">Auto-Saves Settings</span>
+            </div>
+            <div class="form-grid">
+                <div class="form-group"><label>Owner TIN</label><input type="text" id="birTin" placeholder="123456789"></div>
+                <div class="form-group"><label>Branch Code</label><input type="text" id="birBranch" placeholder="000" value="000"></div>
+                <div class="form-group"><label>RDO Code</label><input type="text" id="birRDO" placeholder="E.g. 143" value="000"></div>
+                <div class="form-group"><label>Classification</label>
+                    <select id="birClass" onchange="toggleBirClass()">
+                        <option value="NON-INDIVIDUAL">Non-Individual</option>
+                        <option value="INDIVIDUAL">Individual</option>
+                    </select>
+                </div>
+                <div class="form-group"><label>Reporting Cycle</label><select id="birCycle"><option value="M">Monthly</option><option value="Q" selected>Quarterly</option></select></div>
+                <div class="form-group"><label>Calendar Type</label><select id="birCalendar"><option value="C">Calendar</option><option value="F">Fiscal</option></select></div>
+                <div class="form-group" id="grpRegName" style="grid-column: 1 / -1;"><label>Registered Company Name</label><input type="text" id="birRegName"></div>
+                <div class="form-group" id="grpLName" style="display:none;"><label>Last Name</label><input type="text" id="birLName"></div>
+                <div class="form-group" id="grpFName" style="display:none;"><label>First Name</label><input type="text" id="birFName"></div>
+                <div class="form-group" id="grpMName" style="display:none;"><label>Middle Name</label><input type="text" id="birMName"></div>
+                <div class="form-group" style="grid-column: 1 / -1;"><label>Trade Name (Optional)</label><input type="text" id="birTradeName"></div>
+                <div class="form-group"><label>Sub Street</label><input type="text" id="birSubSt"></div>
+                <div class="form-group"><label>Street</label><input type="text" id="birStreet"></div>
+                <div class="form-group"><label>Barangay</label><input type="text" id="birBrgy"></div>
+                <div class="form-group"><label>City / Municipality</label><input type="text" id="birCity"></div>
+                <div class="form-group"><label>Province</label><input type="text" id="birProv"></div>
+                <div class="form-group"><label>Zip Code</label><input type="text" id="birZip"></div>
+            </div>
+            <button class="btn-submit" style="width: 100%; margin-top: 20px;" onclick="executeRELIEFDat()">🚀 Save and Generate .DAT Files</button>
+        </div>
+    </div>
+
+    <div id="entryModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeModal()">&times;</span>
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:10px; margin-bottom: 20px;">
+                <h2 id="modalTitle" style="margin:0; color:var(--text-main);">➕ Add New Record</h2>
+            </div>
+            
+            <form id="entryForm">
+                <input type="hidden" id="editingId">
+                <div class="form-grid">
+                    <div class="form-group"><label>Date</label><input type="date" id="date" required></div>
+                    <div class="form-group"><label>Month</label>
+                        <select id="month" required>
+                            <option value="JANUARY">JANUARY</option><option value="FEBRUARY">FEBRUARY</option><option value="MARCH">MARCH</option><option value="APRIL">APRIL</option><option value="MAY">MAY</option><option value="JUNE">JUNE</option><option value="JULY">JULY</option><option value="AUGUST">AUGUST</option><option value="SEPTEMBER">SEPTEMBER</option><option value="OCTOBER">OCTOBER</option><option value="NOVEMBER">NOVEMBER</option><option value="DECEMBER">DECEMBER</option>
+                        </select>
+                    </div>
+                    <div class="form-group"><label>Transaction Type</label>
+                        <select id="type" onchange="toggleCategory()" required>
+                            <option value="Sales">Sales / Income</option>
+                            <option value="Expense">Purchase / Expense</option>
+                            <option value="Setup">Setup / Beginning Balance</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="categoryGroup" style="display: none;">
+                        <label>Account / Category (COA Mapping)</label>
+                        <select id="category" required></select>
+                    </div>
+                    <div class="form-group"><label>Client / Payor / Supplier</label><input type="text" id="payor" list="clientMemory" onkeyup="triggerAutoFill()" required><datalist id="clientMemory"></datalist></div>
+                    <div class="form-group"><label>Address</label><input type="text" id="address"></div>
+                    <div class="form-group"><label>TIN</label><input type="text" id="tin" placeholder="000-000-000-000"></div>
+                    <div class="form-group"><label>Reference / S.I. No.</label><input type="text" id="ref" placeholder="Enter Ref / Invoice No."></div>
+                    <div class="form-group" style="grid-column: 1 / -1;" id="taxStatusGroup">
+                        <label>Tax Status</label>
+                        <select id="taxType" onchange="calculateTax()" style="border: 2px solid var(--accent); font-weight: bold;">
+                            <option value="Vatable">Vatable (12% VAT)</option>
+                            <option value="Exempt">VAT Exempt</option>
+                            <option value="ZeroRated">Zero-Rated</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="grid-column: 1 / -1;"><label>Particulars / Description</label><input type="text" id="particulars" required></div>
+                    <div class="form-group" style="grid-column: 1 / -1;"><label>Attachment URL (Optional)</label><input type="url" id="attachment"></div>
+
+                    <div class="form-group"><label style="color: var(--accent);">Gross Amount (PHP)</label><input type="text" id="gross" class="currency-input" oninput="calculateTax()" onfocus="unformatInput(this)" onblur="formatInput(this)" required></div>
+                    <div class="form-group" id="netGroup"><label>Net of VAT / Vatable Sales</label><input type="text" id="net" class="currency-input" readonly></div>
+                    <div class="form-group" id="vatGroup"><label>VAT Amount</label><input type="text" id="vat" class="currency-input" readonly></div>
+                    <div class="form-group" id="ewtGroup"><label>EWT Amount</label><input type="text" id="ewt" class="currency-input" onfocus="unformatInput(this)" onblur="formatInput(this)"></div>
+                    <div class="form-group"><label style="color: var(--success);">Net Cash / Payable Impact</label><input type="text" id="cash" class="currency-input" readonly required></div>
+                </div>
+                <button type="submit" class="btn-submit" id="submitBtn">💾 Save securely to Ledger</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="settingsModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <span class="close-btn" onclick="closeSettings()">&times;</span>
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:10px; margin-bottom: 20px;">
+                <h2 style="margin:0; color:var(--text-main);">⚙️ System Settings</h2>
+                <span class="badge" style="background:var(--primary-light); color:white; padding:5px 10px; border-radius:5px; font-size:0.8rem;">Admin Control</span>
+            </div>
+            <div class="form-grid">
+                <div class="form-group" style="grid-column: 1 / -1;"><label>New Admin Password</label><input type="password" id="setAdminPwd" style="text-align: center; font-weight: bold;" placeholder="Leave blank to keep current"></div>
+                <div class="form-group" style="grid-column: 1 / -1;"><label>New Employee Password</label><input type="password" id="setEmpPwd" style="text-align: center; font-weight: bold;" placeholder="Leave blank to keep current"></div>
+                
+                <div class="form-group" style="grid-column: 1 / -1; border-top: 1px solid var(--border); margin-top: 10px; padding-top: 15px;">
+                    <label style="color: var(--accent); font-size: 0.9rem;">🏢 Company Profile</label>
+                </div>
+                <div class="form-group" style="grid-column: 1 / -1;"><label>Registered Company Name</label><input type="text" id="setCompName" placeholder="E.g. Degz Enterprise"></div>
+                <div class="form-group" style="grid-column: 1 / -1;"><label>Company TIN</label><input type="text" id="setCompTIN" placeholder="000-000-000-000"></div>
+                <div class="form-group" style="grid-column: 1 / -1;"><label>Company Full Address</label><input type="text" id="setCompAddress" placeholder="Full Business Address"></div>
+            </div>
+            <button class="btn-submit" style="width: 100%; margin-top: 20px;" onclick="saveSettings()">🔒 Update Settings</button>
+        </div>
+    </div>
+
+    <div id="auditModal" class="modal">
+        <div class="modal-content" style="max-width: 900px;">
+            <span class="close-btn" onclick="document.getElementById('auditModal').style.display='none'">&times;</span>
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:10px; margin-bottom: 20px;">
+                <h2 style="margin:0; color:var(--text-main);">🕵️ System Audit Trail</h2>
+                <span class="badge" style="background:var(--primary-light); color:white; padding:5px 10px; border-radius:5px; font-size:0.8rem;">Admin Eyes Only</span>
+            </div>
+            <div class="table-wrapper" style="max-height: 400px;">
+                <table style="min-width: 1000px;">
+                    <thead>
+                        <tr><th>Timestamp</th><th>User</th><th>Action</th><th>Record ID</th><th>Details & Changes</th></tr>
+                    </thead>
+                    <tbody id="auditTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="app-view">
+        <header>
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <h1 style="margin:0; font-size:1.4rem;">Degz Pulse <span id="roleDisplay" class="role-badge"></span></h1>
+                <span id="cloudStatus" class="status-local">Connecting...</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <button class="btn-theme" onclick="toggleTheme()" id="themeBtn" title="Toggle Dark Mode">🌙</button>
+                <div id="clock" style="font-family:monospace; font-size:1.1rem;">00:00</div>
+                <button id="logoutBtn" class="btn-action" style="background:#dc2626; color:white; display:none;" onclick="logout()">🚪 Lock</button>
+            </div>
+        </header>
+        <div class="container" id="mainApp" style="display: none; padding-bottom: 50px;"> 
+            <div class="dashboard-header">
+                <span>Quarterly BIR Tax Summary & Analytics</span>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn-action btn-settings admin-only" style="background:var(--primary-light); color:white;" onclick="openSettings()">⚙️ Settings</button>
+                    <button class="btn-action btn-close-year admin-only" onclick="promptCloseYear()">🛑 Year-End Close</button>
+                    <button class="btn-action btn-lock admin-only" id="lockBtnUI" onclick="promptLockQuarter()">🔒 Lock Quarter</button>
+                    <button class="btn-action btn-print" onclick="generateBIRPrint()">🖨️ BIR Tax Report</button>
+                    <select id="quarterSelect" onchange="updateDashboard()" style="padding: 0.4rem; border-radius: 4px; font-weight:bold; background:var(--input-bg); color:var(--text-main); border:1px solid var(--border);">
+                        <option value="Q1">Q1 (Jan, Feb, Mar)</option><option value="Q2">Q2 (Apr, May, Jun)</option><option value="Q3">Q3 (Jul, Aug, Sep)</option><option value="Q4">Q4 (Oct, Nov, Dec)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="dashboard-grid">
+                <div class="dashboard-cards">
+                    <div class="card bir-summary"><h3 style="color:var(--success)">Vatable Sales</h3><div class="amount" id="q-sales">₱ 0.00</div></div>
+                    <div class="card bir-summary"><h3 style="color:var(--danger)">Total Purchases</h3><div class="amount" id="q-expenses">₱ 0.00</div></div>
+                    <div class="card bir-summary"><h3 style="color:var(--accent)">Net Taxable Income</h3><div class="amount" id="q-net">₱ 0.00</div></div>
+                    <div class="card bir-summary"><h3 style="color:var(--warning)">VAT Payable</h3><div class="amount" id="q-vat">₱ 0.00</div><div class="sub-text" id="q-vat-status">Output - Input VAT</div></div>
+                </div>
+                <div class="chart-container"><canvas id="financeChart"></canvas></div>
+                <div class="chart-container"><canvas id="categoryChart"></canvas></div>
+            </div>
+            <div class="table-toolbar">
+                <div style="display: flex; gap: 1rem; align-items: center;"><button class="btn-action btn-new" onclick="openModal()">➕ New Transaction</button></div>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <select id="filterYear" onchange="renderTable(); updateDashboard(); populateReportView(); populateFSView(); populateBreakdownView();" class="search-box"></select>
+                    <select id="filterMonth" onchange="renderTable(); populateReportView(); populateFSView(); populateBreakdownView();" class="search-box">
+                        <option value="ALL">All Months</option><option value="JANUARY">JANUARY</option><option value="FEBRUARY">FEBRUARY</option><option value="MARCH">MARCH</option><option value="APRIL">APRIL</option><option value="MAY">MAY</option><option value="JUNE">JUNE</option><option value="JULY">JULY</option><option value="AUGUST">AUGUST</option><option value="SEPTEMBER">SEPTEMBER</option><option value="OCTOBER">OCTOBER</option><option value="NOVEMBER">NOVEMBER</option><option value="DECEMBER">DECEMBER</option>
+                    </select>
+                    <input type="text" id="searchBar" class="search-box" placeholder="🔍 Deep Search Data..." onkeyup="renderTable()">
+                    <input type="file" id="fileInput" style="display:none;" accept=".xlsx, .xls" onchange="importExcel(event)">
+                    
+                    <button class="btn-action admin-only" style="background:#475569; color:white;" onclick="openAuditModal()">🕵️ Audit Logs</button>
+                    <button class="btn-action admin-only" style="background:var(--primary); color:white;" onclick="document.getElementById('fileInput').click()">📥 Import</button>
+                    <button class="btn-action" style="background:var(--success); color:white;" onclick="exportExcel()">📤 BIR Template</button>
+                    <button class="btn-action" style="background:#0f172a; color:white; border: 1px solid #334155;" onclick="exportBooksOfAccounts()">📘 BIR Books</button>
+                    <button class="btn-action" style="background:#b91c1c; color:white;" onclick="generateLooseLeafPDF()">📄 Loose-Leaf PDF</button>
+                    <button class="btn-action" style="background:#7e22ce; color:white;" onclick="openBirProfileModal()">🗄️ RELIEF</button>
+                    <button class="btn-action" style="background:#0ea5e9; color:white;" onclick="openValidatorModal()">✅ Validator</button>
+                </div>
+            </div>
+            <div class="tabs">
+                <button class="tab-btn active" onclick="switchTab('ALL', this)">General Ledger</button>
+                <button class="tab-btn" onclick="switchTab('Sales', this)">Sales Register</button>
+                <button class="tab-btn" onclick="switchTab('Expense', this)">Purchases</button>
+                <button class="tab-btn tab-bd" onclick="switchTab('Breakdown', this)">📉 Monthly Breakdown & Cashflow</button>
+                <button class="tab-btn tab-report" onclick="switchTab('Reports', this)">📊 Tax Analytics</button>
+                <button class="tab-btn tab-fs" onclick="switchTab('FS', this)">📑 Financial Statements</button>
+            </div>
+            
+            <div id="ledgerView">
+                <div class="mini-summary-container">
+                    <div class="mini-card"><span class="mini-card-title">📈 Total Sales</span><span class="mini-card-value" id="filt-sales" style="color:var(--success)">₱ 0.00</span></div>
+                    <div class="mini-card"><span class="mini-card-title">📉 Total Purchases</span><span class="mini-card-value" id="filt-expenses" style="color:var(--danger)">₱ 0.00</span></div>
+                    <div class="mini-card"><span class="mini-card-title">⚖️ Net Cash Flow</span><span class="mini-card-value" id="filt-net">₱ 0.00</span></div>
+                </div>
+                <div class="table-wrapper">
+                    <table id="dataTable">
+                        <thead>
+                            <tr>
+                                <th>Action</th><th onclick="sortTable('date')">Date ↕️</th><th onclick="sortTable('month')">Month ↕️</th><th onclick="sortTable('type')">Type ↕️</th><th onclick="sortTable('category')">Category ↕️</th><th onclick="sortTable('payor')">Client/Payor ↕️</th><th>Particulars</th><th>TIN</th><th onclick="sortTable('ref')">S.I / Ref ↕️</th><th onclick="sortTable('gross')" class="number-col">Gross ↕️</th><th class="number-col">Net</th><th class="number-col">VAT</th><th class="number-col">EWT</th><th class="number-col">Cash</th><th>Status / Audit</th><th>Docs</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="breakdownWrapper">
+                <h2 style="margin-top:0; border-bottom: 2px solid var(--border); padding-bottom: 10px;">Monthly Cashflow & Expense Breakdown</h2>
+                <div class="mini-summary-container">
+                    <div class="mini-card" style="border-left: 5px solid var(--success);"><span class="mini-card-title">💵 Cash Inflow (Total Sales Cash)</span><span class="mini-card-value" id="bd-inflow" style="color:var(--success)">₱ 0.00</span></div>
+                    <div class="mini-card" style="border-left: 5px solid var(--danger);"><span class="mini-card-title">💸 Cash Outflow (Total Paid)</span><span class="mini-card-value" id="bd-outflow" style="color:var(--danger)">₱ 0.00</span></div>
+                    <div class="mini-card" style="border-left: 5px solid var(--accent);"><span class="mini-card-title">⚖️ Total Net Cash</span><span class="mini-card-value" id="bd-netcash">₱ 0.00</span></div>
+                </div>
+                <div class="dashboard-grid" style="grid-template-columns: 1fr 1fr;">
+                    <div class="card" style="padding: 0;">
+                        <h3 style="padding: 1.5rem 1.5rem 0.5rem 1.5rem; border-bottom: 1px solid var(--border); margin:0;">Detailed Expense Matrix</h3>
+                        <div id="bd-expense-list"></div>
+                        <div class="bd-list-item" style="background: var(--primary-light); color: white; border-radius: 0 0 10px 10px;">
+                            <span class="cat-name" style="color: white;">TOTAL EXPENSES</span>
+                            <span class="cat-val" id="bd-total-exp" style="color: #fca5a5;">₱ 0.00</span>
+                        </div>
+                    </div>
+                    <div class="ai-recommendation" id="ai-recom-box">
+                        <h3>🤖 System Auto-Recommendation</h3>
+                        <div id="bd-ai-text"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="fsWrapper">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; position: relative; z-index: 10;">
+                    <div id="balance-checker" style="position: static; margin: 0; display: inline-block;">Calculating Balance...</div>
+                    <div style="text-align: center;">
+                        <span style="background: #fef08a; color: #854d0e; padding: 6px 15px; border-radius: 20px; font-weight: bold; font-size: 0.85rem; border: 1px solid #eab308; letter-spacing: 1px;">UNAUDITED DRAFT FS</span>
+                    </div>
+                    <button class="btn-action btn-print" onclick="printFS()">🖨️ Print Financial Reports</button>
+                </div>
+                <div class="fs-header"><h2 id="fs-compname-hdr">DEGZ PULSE</h2><h3>STATEMENT OF COMPREHENSIVE INCOME</h3><p id="fs-period"></p></div>
+                <div class="fs-section"><table class="fs-table" id="fs-income-table"></table></div>
+                <div class="fs-header print-page-break"><h2 id="fs-compname-eq">DEGZ PULSE</h2><h3>STATEMENT OF CHANGES IN EQUITY</h3><p id="fs-eq-period"></p></div>
+                <div class="fs-section"><table class="fs-table" id="fs-equity-table"></table></div>
+                <div class="fs-header print-page-break"><h2 id="fs-compname-bs">DEGZ PULSE</h2><h3>STATEMENT OF FINANCIAL POSITION</h3><p id="fs-bs-period"></p></div>
+                <div class="fs-section"><table class="fs-table" id="fs-bs-table"></table></div>
+                <div class="fs-header print-page-break"><h2 id="fs-compname-cf">DEGZ PULSE</h2><h3>STATEMENT OF CASH FLOWS</h3><p id="fs-cf-period"></p></div>
+                <div class="fs-section"><table class="fs-table" id="fs-cf-table"></table></div>
+                <div class="fs-header print-page-break"><h2 id="fs-compname-tb">DEGZ PULSE</h2><h3>UNADJUSTED TRIAL BALANCE</h3><p id="fs-tb-period"></p></div>
+                <div class="fs-section"><table class="fs-table" id="fs-tb-table"></table></div>
+                <div class="print-page-break fs-section notes-fs" id="fs-notes-section"></div>
+            </div>
+
+            <div id="reportWrapper">
+                <div class="report-summary-box">
+                    <div>
+                        <h2 style="margin: 0;">Comprehensive Auditor's Summary</h2>
+                        <p style="margin: 5px 0 0 0; color: #cbd5e1; font-size: 0.9rem;">Period: <span id="r-period"></span></p>
+                    </div>
+                    <button class="btn-action" style="background: var(--accent); color: white; padding: 0.75rem 1.5rem; font-size: 1.1rem;" onclick="generateAuditorPDF()">📄 Download / Print Auditor PDF</button>
+                </div>
+                <div class="report-stat-grid">
+                    <div class="r-stat"><h4>Total Gross Sales</h4><span id="rs-gs" style="color: var(--success);">₱ 0.00</span></div>
+                    <div class="r-stat"><h4>Vatable Sales (Net)</h4><span id="rs-vs">₱ 0.00</span></div>
+                    <div class="r-stat"><h4>Output VAT</h4><span id="rs-ovat">₱ 0.00</span></div>
+                    <div class="r-stat"><h4>Creditable Tax (CWT)</h4><span id="rs-cwt" style="color: var(--accent);">₱ 0.00</span></div>
+                    <div class="r-stat"><h4>Total Gross Purchases</h4><span id="rs-ge" style="color: var(--danger);">₱ 0.00</span></div>
+                    <div class="r-stat"><h4>Vatable Purchase (Net)</h4><span id="rs-ve">₱ 0.00</span></div>
+                    <div class="r-stat"><h4>Input VAT</h4><span id="rs-ivat">₱ 0.00</span></div>
+                    <div class="r-stat"><h4>EWT Payable</h4><span id="rs-ewt" style="color: var(--warning);">₱ 0.00</span></div>
+                </div>
+                <div style="background: var(--bg); border: 1px solid var(--border); padding: 1.5rem; border-radius: 8px;">
+                    <h3 style="margin-top:0; border-bottom: 2px solid var(--border); padding-bottom:10px;">Tax & Net Income Breakdown</h3>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;"><span>Total Net Sales (Basis for Income Tax):</span><strong id="rs-ni-sales">₱ 0.00</strong></div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;"><span>Less: Total Allowable Deductions:</span><strong id="rs-ni-exp" style="color: var(--danger);">₱ 0.00</strong></div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 1.2rem; border-bottom: 1px dashed var(--border); padding-bottom: 10px;"><span>Net Taxable Income:</span><strong id="rs-ni-total" style="color: var(--success);">₱ 0.00</strong></div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;"><span>Total Output VAT:</span><strong id="rs-tv-out">₱ 0.00</strong></div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;"><span>Less: Total Input VAT:</span><strong id="rs-tv-in" style="color: var(--danger);">₱ 0.00</strong></div>
+                    <div style="display: flex; justify-content: space-between; font-size: 1.2rem;"><span>Net VAT Payable / (Carry-Over):</span><strong id="rs-tv-total" style="color: var(--warning);">₱ 0.00</strong></div>
+                </div>
+            </div>
+        </div>
+    </div> 
+    
+    <div id="printArea">
+        <div class="print-title">BUREAU OF INTERNAL REVENUE (BIR) REPORT SUMMARY</div>
+        <div class="print-subtitle" id="printSubtitle">Quarterly Tax Summary for eBIRForms Encoding</div>
+        <div class="bir-box">
+            <div class="bir-box-title">PART II - COMPUTATION OF TAX (For Form 2550Q - Value-Added Tax)</div>
+            <div class="bir-row"><div class="bir-label">Line 15: Total Vatable Sales / Receipts (Net Sales)</div><div class="bir-value" id="print-line15">0.00</div></div>
+            <div class="bir-row"><div class="bir-label"><strong>Line 16: Total Output Tax Due (12%)</strong></div><div class="bir-value" id="print-line16">0.00</div></div>
+            <div style="height: 15px;"></div>
+            <div class="bir-row"><div class="bir-label">Line 21: Total Vatable Purchases (Net Expenses)</div><div class="bir-value" id="print-line21">0.00</div></div>
+            <div class="bir-row"><div class="bir-label"><strong>Line 22: Total Input Tax (12%)</strong></div><div class="bir-value" id="print-line22">0.00</div></div>
+            <div class="bir-row bir-total-row"><div class="bir-label" id="print-vat-status-label">Line 26: Net VAT Payable / (Excess Carry-over)</div><div class="bir-value" id="print-line26">0.00</div></div>
+        </div>
+        <div class="bir-box">
+            <div class="bir-box-title">PART V - COMPUTATION OF TAX (For Form 1701Q / 1702Q - Income Tax)</div>
+            <div class="bir-row"><div class="bir-label">Line 36: Gross Sales / Revenues / Receipts</div><div class="bir-value" id="print-line36">0.00</div></div>
+            <div class="bir-row"><div class="bir-label">Line 38: Less: Allowable Deductions (Operating Expenses)</div><div class="bir-value" id="print-line38">0.00</div></div>
+            <div class="bir-row bir-total-row"><div class="bir-label">Line 40: Net Taxable Income (Basis for Income Tax)</div><div class="bir-value" id="print-line40">0.00</div></div>
+        </div>
+        <div class="signature-area" style="margin-top: 50px; display:flex; justify-content:space-between;"><div style="border-top:1px solid black; width: 40%; text-align:center; padding-top:5px;">Prepared By / Accountant</div><div style="border-top:1px solid black; width: 40%; text-align:center; padding-top:5px;">Approved By / Taxpayer Signature</div></div>
+    </div>
+    
+    <div id="auditorPrintArea">
+        <div class="auditor-header">
+            <h1 id="ap-compname">COMPANY NAME</h1>
+            <p>TIN: <span id="ap-comptin">000-000-000-000</span> | Address: <span id="ap-compadd">Business Address</span></p>
+            <h2 style="margin: 15px 0 5px 0;">FINANCIAL & TAX SUMMARY REPORT</h2>
+            <p style="font-weight: bold; font-size: 16px;">For the Period: <span id="ap-period"></span></p>
+        </div>
+        <div class="auditor-section">
+            <h2>I. SALES & REVENUE SUMMARY</h2>
+            <table class="auditor-table">
+                <tr><td>Gross Sales / Receipts</td><td class="val" id="ap-gs">0.00</td></tr>
+                <tr><td>Less: VAT Exempt Sales</td><td class="val" id="ap-ex-s">0.00</td></tr>
+                <tr><td>Less: Zero-Rated Sales</td><td class="val" id="ap-zr-s">0.00</td></tr>
+                <tr class="total-row"><td>Vatable Sales (Net of VAT)</td><td class="val" id="ap-vs">0.00</td></tr>
+            </table>
+        </div>
+        <div class="auditor-section">
+            <h2>II. PURCHASES & EXPENSES SUMMARY</h2>
+            <table class="auditor-table">
+                <tr><td>Gross Purchases / Expenses</td><td class="val" id="ap-ge">0.00</td></tr>
+                <tr><td>Less: VAT Exempt Purchases</td><td class="val" id="ap-ex-p">0.00</td></tr>
+                <tr><td>Less: Zero-Rated Purchases</td><td class="val" id="ap-zr-p">0.00</td></tr>
+                <tr class="total-row"><td>Vatable Purchases (Net of VAT)</td><td class="val" id="ap-vp">0.00</td></tr>
+            </table>
+        </div>
+        <div class="auditor-section">
+            <h2>III. VALUE-ADDED TAX (VAT) COMPUTATION</h2>
+            <table class="auditor-table">
+                <tr><td>Total Output VAT (12% of Vatable Sales)</td><td class="val" id="ap-ovat">0.00</td></tr>
+                <tr><td>Less: Total Input VAT (12% of Vatable Purchases)</td><td class="val" id="ap-ivat">0.00</td></tr>
+                <tr class="total-row"><td>Net VAT Payable / (Excess Carry-Over)</td><td class="val" id="ap-vatpay">0.00</td></tr>
+            </table>
+        </div>
+        <div class="auditor-section">
+            <h2>IV. WITHHOLDING TAXES</h2>
+            <table class="auditor-table">
+                <tr><td>Creditable Withholding Tax (CWT) Claimable</td><td class="val" id="ap-cwt">0.00</td></tr>
+                <tr><td>Expanded Withholding Tax (EWT) Payable</td><td class="val" id="ap-ewt">0.00</td></tr>
+            </table>
+        </div>
+        <div class="auditor-section">
+            <h2>V. NET TAXABLE INCOME COMPUTATION</h2>
+            <table class="auditor-table">
+                <tr><td>Total Net Sales / Revenues</td><td class="val" id="ap-ni-s">0.00</td></tr>
+                <tr><td>Less: Total Allowable Deductions (Net Expenses)</td><td class="val" id="ap-ni-e">0.00</td></tr>
+                <tr class="total-row"><td>Net Taxable Income</td><td class="val" id="ap-ni-t">0.00</td></tr>
+            </table>
+        </div>
+        <div class="auditor-signatures">
+            <div class="auditor-sig-box">Prepared By / System Admin<br><span style="font-size: 10px; font-weight: normal;">(Degz Pulse System Generated)</span></div>
+            <div class="auditor-sig-box">Certified Correct By / Auditor<br><span style="font-size: 10px; font-weight: normal;">(Signature over Printed Name)</span></div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
