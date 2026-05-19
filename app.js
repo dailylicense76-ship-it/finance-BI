@@ -1,6 +1,5 @@
 // =========================================================================
-// ⚠️ ILAGAY DITO ANG GOOGLE APPS SCRIPT 
- APP URL MO ⚠️
+// ⚠️ ILAGAY DITO ANG GOOGLE APPS SCRIPT APP URL MO ⚠️
 // =========================================================================
 const API_URL = "https://script.google.com/macros/s/AKfycbwkMf_im4W9hIwtW8EVw8q9ZBRIMQ0qAifhGwkJbraYPZjc34Trdcexak-qlz_dZXg3/exec"; 
 
@@ -123,12 +122,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
 // ENTERPRISE CLOUD FETCH (REPLACING GOOGLE.SCRIPT.RUN)
 function callCloudAPI(payload) {
-    if (API_URL === "https://script.google.com/macros/s/AKfycbwkMf_im4W9hIwtW8EVw8q9ZBRIMQ0qAifhGwkJbraYPZjc34Trdcexak-qlz_dZXg3/exec") return Promise.reject("API URL not set");
+    if (API_URL.includes("AKfycbwkMf_im4W9hIwtW8EVw8q9ZBRIMQ0qAifhGwkJbraYPZjc34Trdcexak-qlz_dZXg3")) {
+        return Promise.reject("Default API URL detected. Please update with your new deployment URL.");
+    }
+    
     return fetch(API_URL, {
         method: "POST",
+        redirect: "follow", // ⚠️ CRITICAL for Google Apps Script 302 redirects
         headers: { "Content-Type": "text/plain;charset=utf-8" }, 
         body: JSON.stringify(payload)
-    }).then(res => res.json()).catch(err => console.error("Cloud Sync Failed", err));
+    })
+    .then(res => res.json())
+    .catch(err => {
+        console.error("Cloud Sync Failed", err);
+        return { success: false, error: err.message };
+    });
 }
 
 function initSystem() {
@@ -272,8 +280,48 @@ document.getElementById('entryForm').addEventListener('submit', function(e) {
     if (document.getElementById('type').value === 'Setup') { finalTaxType = 'Exempt'; finalNet = strictGross; finalVat = 0; finalCash = 0; }
     let inputDate = document.getElementById('date').value; let cleanDate = inputDate.includes('T') ? inputDate.split('T')[0] : inputDate;
 
+    // --- POS DYNAMIC FEE CALCULATION ---
+    // Ensure you have inputs in your HTML for 'capitalAmount' and 'feeRate' (e.g., 5 for per 100)
+    // If not present, it defaults to 0 to prevent NaN errors.
+    let posCapitalEl = document.getElementById('capitalAmount');
+    let feeRateEl = document.getElementById('feeRate');
+    let posCapital = posCapitalEl ? parseNum(posCapitalEl.value) : 0;
+    let feeRate = feeRateEl ? parseNum(feeRateEl.value) : 0; 
+    let feeCalc = 0;
+
+    // Editable fee structure (e.g., if rate is 5 meaning 5 per 100, calculate against the strictGross)
+    if (feeRate > 0 && strictGross > 0) {
+        feeCalc = r2((strictGross / 100) * feeRate);
+        strictGross += feeCalc; // Adjust gross to include the dynamic fee
+        finalCash = document.getElementById('type').value === 'Setup' ? 0 : r2(strictGross - strictEwt); 
+    }
+    // ------------------------------------
+
     const entry = { 
-        id: editId ? Number(editId) : new Date().getTime(), date: cleanDate, month: document.getElementById('month').value, type: document.getElementById('type').value, payor: document.getElementById('payor').value, address: document.getElementById('address').value, particulars: document.getElementById('particulars').value, tin: document.getElementById('tin').value, ref: document.getElementById('ref').value, taxType: finalTaxType, category: document.getElementById('category').value, attachment: attachedURL, gross: strictGross, net: finalNet, vat: finalVat, ewt: strictEwt, cash: finalCash, status: 'Active', createdBy: currentUserRole, createdAt: timestamp, modifiedBy: '', modifiedAt: '' 
+        id: editId ? Number(editId) : new Date().getTime(), 
+        date: cleanDate, 
+        month: document.getElementById('month').value, 
+        type: document.getElementById('type').value, 
+        payor: document.getElementById('payor').value, 
+        address: document.getElementById('address').value, 
+        particulars: document.getElementById('particulars').value, 
+        tin: document.getElementById('tin').value, 
+        ref: document.getElementById('ref').value, 
+        taxType: finalTaxType, 
+        category: document.getElementById('category').value, 
+        attachment: attachedURL, 
+        gross: strictGross, 
+        net: finalNet, 
+        vat: finalVat, 
+        ewt: strictEwt, 
+        cash: finalCash, 
+        capital: posCapital, 
+        fee: feeCalc,
+        status: 'Active', 
+        createdBy: currentUserRole, 
+        createdAt: timestamp, 
+        modifiedBy: '', 
+        modifiedAt: '' 
     };
     
     if (isMonthLocked(entry.month, entry.date)) return showToast("Quarter is Locked. Access Denied.", "error");
@@ -302,7 +350,16 @@ function editRecord(id) {
     document.getElementById('month').value = row.month; document.getElementById('type').value = row.type; document.getElementById('payor').value = row.payor; document.getElementById('address').value = row.address; document.getElementById('particulars').value = row.particulars; document.getElementById('tin').value = row.tin; document.getElementById('ref').value = row.ref; 
     
     toggleCategory(); document.getElementById('taxType').value = row.taxType || 'Vatable'; document.getElementById('category').value = row.category || ''; document.getElementById('attachment').value = row.attachment || '';
-    document.getElementById('gross').value = formatCurrency(row.gross); document.getElementById('net').value = formatCurrency(row.net); document.getElementById('vat').value = formatCurrency(row.vat); document.getElementById('ewt').value = formatCurrency(row.ewt); document.getElementById('cash').value = formatCurrency(row.cash);
+    
+    // Reverse POS fee logic if it was applied, or just load raw gross
+    let displayGross = row.gross;
+    if (row.fee > 0) { displayGross -= row.fee; }
+    
+    document.getElementById('gross').value = formatCurrency(displayGross); 
+    document.getElementById('net').value = formatCurrency(row.net); document.getElementById('vat').value = formatCurrency(row.vat); document.getElementById('ewt').value = formatCurrency(row.ewt); document.getElementById('cash').value = formatCurrency(row.cash);
+    
+    if (document.getElementById('capitalAmount')) document.getElementById('capitalAmount').value = row.capital || '';
+    
     document.getElementById('modalTitle').innerText = "✏️ Edit Record"; document.getElementById('submitBtn').innerText = "♻️ Update Transaction"; document.getElementById('entryModal').style.display = 'block'; 
 }
 
